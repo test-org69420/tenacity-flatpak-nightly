@@ -8,12 +8,12 @@ on:
   workflow_dispatch:
 
 env:
-  APP_ID: # App ID (reverse-DNS)
-  MANIFEST_PATH: # Path to manifest
-  IMAGE_NAME: # Name of Docker image
-  IMAGE_TAG: # Tag of image
-  FLATPAK_BUNDLE: # Name of bundle (excl. .flatpak)
-  FLATPAK_BRANCH: # Flatpak branch
+  APP_ID: org.tenacityaudio.Tenacity # App ID (reverse-DNS)
+  MANIFEST_PATH: org.tenacityaudio.Tenacity.yaml # Path to manifest
+  IMAGE_NAME: tenacity # Name of Docker image
+  IMAGE_TAG: nightly # Tag of image
+  FLATPAK_BUNDLE: tenacity # Name of bundle (excl. .flatpak)
+  FLATPAK_BRANCH: nightly # Flatpak branch
   FLATPAK_BUILD_DIR: build-dir
   FLATPAK_BUILD_REPO: build-repo
 
@@ -140,19 +140,29 @@ jobs:
           oci:${FLATPAK_BUNDLE} \
           docker://ghcr.io/${IMAGE_REPOSITORY}:$IMAGE_TAG
 
+
     - name: Update static index
       env:
+        GITHUB_TOKEN: ${{ secrets.PAT }}
         REGISTRY_AUTH_FILE: /tmp/auth.json
       run: |
         export IMAGE_REPOSITORY=$(echo $GITHUB_REPOSITORY | tr '[:upper:]' '[:lower:]')
         set -e
-        git clone -b gh-pages https://${GITHUB_ACTOR}:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git gh-pages
-        skopeo inspect docker://ghcr.io/${IMAGE_REPOSITORY}:$IMAGE_TAG | \
-          jq '. as $img | { "Registry": "https://ghcr.io/", "Results": [ { "Name": "'${IMAGE_REPOSITORY}'", "Images": [$img] } ] }' \
-          > gh-pages/index/static
+        git clone https://github-actions[bot]:${{ secrets.GITHUB_TOKEN }}@github.com/test-org69420/test-org69420.github.io.git gh-pages
+        cat gh-pages/index/static | jq --argjson docker "$(skopeo inspect docker://ghcr.io/test-org69420/tenacity-flatpak-nightly:nightly | jq '. as $img | { "Name": "'test-org69420/tenacity-flatpak-nightly'", "Images": [$img] }')" '.Results += [ $docker ]' > gh-pages/index/static
         cd gh-pages
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git config user.name "github-actions[bot]"
         git add index/static
-        git commit -m "Update index for ${GITHUB_SHA:0:7}"
-        git push
+
+    - name: Push to repository
+      uses: cpina/github-action-push-to-another-repository@main
+      env:
+        API_TOKEN_GITHUB: ${{ secrets.PAT }} 
+      with:
+        source-directory: 'gh-pages'
+        destination-github-username: 'test-org69420'
+        destination-repository-name: 'test-org69420.github.io'
+        user-email: github-actions[bot]@users.noreply.github.com
+        commit-message: Update index for "${GITHUB_SHA:0:7}"
+        target-branch: gh-pages
